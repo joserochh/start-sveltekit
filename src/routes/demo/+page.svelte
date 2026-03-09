@@ -2,4 +2,5 @@
 	import { resolve } from '$app/paths';
 </script>
 
-<a href={resolve('/demo/better-auth')}>better-auth</a>
+<p>Better Auth demo is temporarily disabled.</p>
+<a href={resolve('/')}>Back to home</a>
