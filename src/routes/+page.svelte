@@ -70,6 +70,30 @@
 	function closeDetail() {
 		activeItem = null;
 		activePane = null;
+		drawerSwipeX = 0;
+	}
+
+	// ─── Drawer swipe-to-close ───────────────────────────────────────────────────
+	let drawerSwipeX = 0;       // current horizontal drag offset (px, rightward only)
+	let swipeStartX = 0;        // touch X at gesture start
+	const SWIPE_THRESHOLD = 72; // px to swipe right before triggering close
+
+	function onDrawerTouchStart(e: TouchEvent) {
+		swipeStartX = e.touches[0].clientX;
+		drawerSwipeX = 0;
+	}
+
+	function onDrawerTouchMove(e: TouchEvent) {
+		const dx = e.touches[0].clientX - swipeStartX;
+		if (dx > 0) drawerSwipeX = dx; // only track rightward drag
+	}
+
+	function onDrawerTouchEnd() {
+		if (drawerSwipeX > SWIPE_THRESHOLD) {
+			closeDetail();
+		} else {
+			drawerSwipeX = 0; // snap back
+		}
 	}
 
 	// Timers pending hard-removal of zeroed entries (2-second grace period).
@@ -479,7 +503,11 @@
 	{#if activeItem && activePane}
 		{@const item = activeItem}
 		{@const pane = activePane}
-		<div class="detail-drawer" role="dialog" aria-label="Product detail: {item.label}" style="--drawer-accent:{pane.accent}">
+		<div class="detail-drawer" role="dialog" tabindex="-1" aria-label="Product detail: {item.label}"
+			style="--drawer-accent:{pane.accent}; {drawerSwipeX > 0 ? `transform:translateX(${drawerSwipeX}px);transition:none;` : ''}"
+			on:touchstart={onDrawerTouchStart}
+			on:touchmove={onDrawerTouchMove}
+			on:touchend={onDrawerTouchEnd}>
 			<!-- Header -->
 			<header class="detail-head">
 				<div>
@@ -695,6 +723,7 @@
 		flex: 0 0 var(--pane-width); /* non-shrinking, non-growing fixed-width flex item */
 		height: var(--pane-height);
 		min-height: 0;
+		overflow: hidden; /* prevent item-grid from bleeding past the pane boundary */
 		border-radius: 1rem;
 		background: linear-gradient(180deg, rgb(255 255 255 / 0.86), rgb(255 255 255 / 0.72));
 		box-shadow: var(--shadow);
@@ -732,11 +761,10 @@
 		grid-template-columns: repeat(4, minmax(0, 1fr));
 		grid-template-rows: repeat(12, minmax(var(--card-row-height), auto));
 		align-content: start;
-		height: calc(
-			(var(--card-row-height) * 8) + (var(--grid-gap) * 7)
-		);
-		overflow-y: auto;
+		/* No explicit height — constrained naturally by the parent 1fr grid track.
+		   overflow-y:auto provides the internal scroll within that bounded space. */
 		min-height: 0;
+		overflow-y: auto;
 		padding-right: 0.2rem;
 		scrollbar-width: thin;
 	}
@@ -815,11 +843,13 @@
 	}
 
 	/* Accent-colored count badge pinned to the top-left of the card;
-	   only rendered when the card has been added at least once. */
+	   only rendered when the card has been added at least once.
+	   Kept inside the card boundary so it isn't clipped by the grid's overflow. */
 	.card-count {
 		position: absolute;
-		top: -0.3rem;
-		left: -0.3rem;
+		top: 0.25rem;
+		left: 0.25rem;
+		z-index: 1;
 		background: var(--accent);
 		color: #fff;
 		border-radius: 999px;
@@ -1264,13 +1294,17 @@
 		top: 0;
 		right: 0;
 		width: min(22rem, 92vw);
+		/* 100dvh = visible viewport excluding browser chrome (address bar etc.) */
 		height: 100vh;
+		height: 100dvh;
 		background: #fff;
 		box-shadow: -8px 0 40px rgb(0 0 0 / 0.16);
 		z-index: 205;
 		display: flex;
 		flex-direction: column;
 		animation: drawer-slide-in 0.22s cubic-bezier(0.22, 1, 0.36, 1) both;
+		/* smooth snap-back after releasing an incomplete swipe */
+		transition: transform 0.2s ease;
 	}
 
 	@keyframes drawer-slide-in {
@@ -1367,6 +1401,8 @@
 	.detail-footer {
 		flex-shrink: 0;
 		padding: 1rem 1.2rem;
+		/* extra bottom padding on devices with a home indicator / notch */
+		padding-bottom: calc(1rem + env(safe-area-inset-bottom));
 		border-top: 1px solid #e2e8f0;
 		display: flex;
 		flex-direction: column;
